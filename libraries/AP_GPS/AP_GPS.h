@@ -3,6 +3,7 @@
 /// @file	AP_GPS.h
 /// @brief	Catch-all header that defines all supported GPS classes.
 
+#include "AP_GPS_SBP.h"
 #include "AP_GPS_NMEA.h"
 #include "AP_GPS_SIRF.h"
 #include "AP_GPS_406.h"
