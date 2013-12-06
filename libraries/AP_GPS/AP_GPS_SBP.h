@@ -52,7 +52,31 @@
 #include <AP_Progmem.h>
 
 
-/// NMEA parser
+#define SBP_HEADER_1  0xBE
+#define SBP_HEADER_2  0xEF
+
+enum sbp_state_state_t {
+    WAITING_1 = 0,
+    WAITING_2,
+    GET_TYPE,
+    GET_LEN,
+    GET_MSG,
+    GET_CRC
+};
+
+/** State structure for processing SBP messages from a particular USART. */
+typedef struct {
+ sbp_state_state_t state;
+  uint8_t msg_type;
+  uint8_t msg_len;
+  uint8_t msg_n_read;
+  uint8_t msg_buff[256];
+  uint8_t crc_n_read;
+  uint8_t crc[2];
+} sbp_process_messages_state_t;
+
+
+/// SBP parser
 ///
 class AP_GPS_SBP : public GPS
 {
@@ -76,6 +100,9 @@ public:
 
 private:
 
+    void sbp_process_usart();
+
+    sbp_process_messages_state_t sbp_state;
 
 };
 
