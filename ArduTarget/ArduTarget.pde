@@ -80,14 +80,14 @@ static AP_Notify notify;
 
 // All GPS access should be through this pointer.
 static GPS         *g_gps;
-AP_GPS_UBLOX    g_gps_driver;
+AP_GPS_SBP    g_gps_driver;
 
 
 
 
 static const AP_Scheduler::Task scheduler_tasks[] PROGMEM = {
     { update_GPS,            2,     900 },
-    { userhook_SlowLoop,     1000,    100 },
+    { userhook_SlowLoop,     5000,    100 },
 };
 
 void setup() {
@@ -100,6 +100,16 @@ void setup() {
 
   // initialise the main loop scheduler
   scheduler.init(&scheduler_tasks[0], sizeof(scheduler_tasks)/sizeof(scheduler_tasks[0]));
+}
+
+static void init_ardutarget(void) {
+  // GPS serial port.
+  hal.uartB->begin(56700, 256, 16);
+
+  // Do GPS init
+  g_gps = &g_gps_driver;
+  // GPS Initialization
+  g_gps->init(hal.uartB, GPS::GPS_ENGINE_AIRBORNE_1G);
 }
 
 
@@ -118,18 +128,17 @@ void loop() {
     uint32_t time_available = (timer + 10000) - micros();
     scheduler.run(time_available - 300);
 
-
-
-
 }
 
 
-static void init_ardutarget(void) {
-  // Do GPS init
-  g_gps = &g_gps_driver;
-  // GPS Initialization
-  g_gps->init(hal.uartB, GPS::GPS_ENGINE_AIRBORNE_1G);
-}
+// static void serial_passthrough() {
+//     if (hal.uartB->available()) {
+//       int16_t inByte = hal.uartB->read();
+//       hal.console->write(inByte);
+//     }
+// }
+
+
 
 // called at 50hz
 static void update_GPS(void)
@@ -147,7 +156,7 @@ static void update_GPS(void)
 }
 
 static void userhook_SlowLoop(void) {
-  hal.console->printf("GPS is at: %d\n", g_gps->time_week_ms);
+  //hal.console->printf("GPS is at: %d\n", g_gps->time_week_ms);
 
 }
 
