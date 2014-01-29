@@ -1,6 +1,6 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 
-#define THISFIRMWARE "ArduCopter V3.2-dev"
+#define THISFIRMWARE "ArduCopter V3.1.1-rc2"
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -115,6 +115,7 @@
 #include <Filter.h>             // Filter library
 #include <AP_Buffer.h>          // APM FIFO Buffer
 #include <AP_Relay.h>           // APM relay
+#include <AP_ServoRelayEvents.h>
 #include <AP_Camera.h>          // Photo or video camera
 #include <AP_Mount.h>           // Camera/Antenna mount
 #include <AP_Airspeed.h>        // needed for AHRS build
@@ -123,14 +124,17 @@
 #include <AC_WPNav.h>     		// ArduCopter waypoint navigation library
 #include <AP_Declination.h>     // ArduPilot Mega Declination Helper Library
 #include <AC_Fence.h>           // Arducopter Fence library
-#include <memcheck.h>           // memory limit checker
 #include <SITL.h>               // software in the loop support
 #include <AP_Scheduler.h>       // main loop scheduler
 #include <AP_RCMapper.h>        // RC input mapping library
 #include <AP_Notify.h>          // Notify library
 #include <AP_BattMonitor.h>     // Battery monitor library
+#include <AP_BoardConfig.h>     // board configuration library
 #if SPRAYER == ENABLED
 #include <AC_Sprayer.h>         // crop sprayer library
+#endif
+#if EPM_ENABLED == ENABLED
+#include <AP_EPM.h>				// EPM cargo gripper stuff
 #endif
 
 // AP_HAL to Arduino compatibility layer
@@ -190,10 +194,10 @@ static DataFlash_APM2 DataFlash;
 #elif CONFIG_HAL_BOARD == HAL_BOARD_APM1
 static DataFlash_APM1 DataFlash;
 #elif CONFIG_HAL_BOARD == HAL_BOARD_AVR_SITL
-//static DataFlash_File DataFlash("/tmp/APMlogs");
-static DataFlash_SITL DataFlash;
+static DataFlash_File DataFlash("logs");
+//static DataFlash_SITL DataFlash;
 #elif CONFIG_HAL_BOARD == HAL_BOARD_PX4
-static DataFlash_File DataFlash("/fs/microsd/APM/logs");
+static DataFlash_File DataFlash("/fs/microsd/APM/LOGS");
 #elif CONFIG_HAL_BOARD == HAL_BOARD_LINUX
 static DataFlash_File DataFlash("logs");
 #else
@@ -339,8 +343,6 @@ static SITL sitl;
 ////////////////////////////////////////////////////////////////////////////////
  #if OPTFLOW == ENABLED
 static AP_OpticalFlow_ADNS3080 optflow;
- #else
-static AP_OpticalFlow optflow;
  #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -423,6 +425,9 @@ static int8_t control_mode = STABILIZE;
 static uint8_t oldSwitchPosition;
 static RCMapper rcmap;
 
+// board specific config
+static AP_BoardConfig BoardConfig;
+
 // receiver RSSI
 static uint8_t receiver_rssi;
 
@@ -482,8 +487,6 @@ static MOTOR_CLASS motors(&g.rc_1, &g.rc_2, &g.rc_3, &g.rc_4);
 static Vector3f omega;
 // This is used to hold radio tuning values for in-flight CH6 tuning
 float tuning_value;
-// used to limit the rate that the pid controller output is logged so that it doesn't negatively affect performance
-static uint8_t pid_log_counter;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -724,22 +727,6 @@ static int16_t yaw_look_at_heading_slew;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Repeat Mission Scripting Command
-////////////////////////////////////////////////////////////////////////////////
-// The type of repeating event - Toggle a servo channel, Toggle the APM1 relay, etc
-static uint8_t event_id;
-// Used to manage the timimng of repeating events
-static uint32_t event_timer;
-// How long to delay the next firing of event in millis
-static uint16_t event_delay;
-// how many times to fire : 0 = forever, 1 = do once, 2 = do twice
-static int16_t event_repeat;
-// per command value, such as PWM for servos
-static int16_t event_value;
-// the stored value used to undo commands - such as original PWM command
-static int16_t event_undo_value;
-
-////////////////////////////////////////////////////////////////////////////////
 // Delay Mission Scripting Command
 ////////////////////////////////////////////////////////////////////////////////
 static int32_t condition_value;  // used in condition commands (eg delay, change alt, etc.)
@@ -783,6 +770,9 @@ static uint8_t auto_trim_counter;
 
 // Reference to the relay object (APM1 -> PORTL 2) (APM2 -> PORTB 7)
 static AP_Relay relay;
+
+// handle repeated servo and relay events
+static AP_ServoRelayEvents ServoRelayEvents(relay);
 
 //Reference to the camera object (it uses the relay object inside it)
 #if CAMERA == ENABLED
@@ -830,6 +820,13 @@ static AC_Sprayer sprayer(&inertial_nav);
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
+// EPM Cargo Griper
+////////////////////////////////////////////////////////////////////////////////
+#if EPM_ENABLED == ENABLED
+static AP_EPM epm;
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
 // function definitions to keep compiler from complaining about undeclared functions
 ////////////////////////////////////////////////////////////////////////////////
 void get_throttle_althold(int32_t target_alt, int16_t min_climb_rate, int16_t max_climb_rate);
@@ -871,9 +868,6 @@ static const AP_Scheduler::Task scheduler_tasks[] PROGMEM = {
     { gcs_send_heartbeat,  100,     150 },
     { gcs_send_deferred,     2,     720 },
     { gcs_data_stream_send,  2,     950 },
-#if COPTER_LEDS == ENABLED
-    { update_copter_leds,   10,      55 },
-#endif
     { update_mount,          2,     450 },
     { ten_hz_logging_loop,  10,     300 },
     { fifty_hz_logging_loop, 2,     220 },
@@ -897,37 +891,12 @@ static const AP_Scheduler::Task scheduler_tasks[] PROGMEM = {
 };
 
 
-void setup() {
-    // this needs to be the first call, as it fills memory with
-    // sentinel values
-    memcheck_init();
+void setup() 
+{
     cliSerial = hal.console;
 
     // Load the default values of variables listed in var_info[]s
     AP_Param::setup_sketch_defaults();
-
-    // initialise notify system
-    notify.init(true);
-
-    // initialise battery monitor
-    battery.init();
-
-#if CONFIG_SONAR == ENABLED
- #if CONFIG_SONAR_SOURCE == SONAR_SOURCE_ADC
-    sonar_analog_source = new AP_ADC_AnalogSource(
-            &adc, CONFIG_SONAR_SOURCE_ADC_CHANNEL, 0.25);
- #elif CONFIG_SONAR_SOURCE == SONAR_SOURCE_ANALOG_PIN
-    sonar_analog_source = hal.analogin->channel(
-            CONFIG_SONAR_SOURCE_ANALOG_PIN);
- #else
-  #warning "Invalid CONFIG_SONAR_SOURCE"
- #endif
-    sonar = new AP_RangeFinder_MaxsonarXL(sonar_analog_source,
-            &sonar_mode_filter);
-#endif
-
-    rssi_analog_source      = hal.analogin->channel(g.rssi_pin);
-    board_vcc_analog_source = hal.analogin->channel(ANALOG_INPUT_BOARD_VCC);
 
     init_ardupilot();
 
@@ -1006,6 +975,7 @@ void loop()
 // Main loop - 100hz
 static void fast_loop()
 {
+
     // IMU DCM Algorithm
     // --------------------
     read_AHRS();
@@ -1117,7 +1087,7 @@ static void update_batt_compass(void)
             compass.null_offsets();
         }
         // log compass information
-        if (motors.armed() && (g.log_bitmask & MASK_LOG_COMPASS)) {
+        if (g.log_bitmask & MASK_LOG_COMPASS) {
             Log_Write_Compass();
         }
     }
@@ -1131,16 +1101,14 @@ static void update_batt_compass(void)
 // should be run at 10hz
 static void ten_hz_logging_loop()
 {
-    if(motors.armed()) {
-        if (g.log_bitmask & MASK_LOG_ATTITUDE_MED) {
-            Log_Write_Attitude();
-        }
-        if (g.log_bitmask & MASK_LOG_RCIN) {
-            DataFlash.Log_Write_RCIN();
-        }
-        if (g.log_bitmask & MASK_LOG_RCOUT) {
-            DataFlash.Log_Write_RCOUT();
-        }
+    if (g.log_bitmask & MASK_LOG_ATTITUDE_MED) {
+        Log_Write_Attitude();
+    }
+    if (g.log_bitmask & MASK_LOG_RCIN) {
+        DataFlash.Log_Write_RCIN();
+    }
+    if (g.log_bitmask & MASK_LOG_RCOUT) {
+        DataFlash.Log_Write_RCOUT();
     }
 }
 
@@ -1153,12 +1121,12 @@ static void fifty_hz_logging_loop()
     gcs_send_message(MSG_RADIO_OUT);
 #endif
 
-# if HIL_MODE == HIL_MODE_DISABLED
-    if (g.log_bitmask & MASK_LOG_ATTITUDE_FAST && motors.armed()) {
+#if HIL_MODE == HIL_MODE_DISABLED
+    if (g.log_bitmask & MASK_LOG_ATTITUDE_FAST) {
         Log_Write_Attitude();
     }
 
-    if (g.log_bitmask & MASK_LOG_IMU && motors.armed()) {
+    if (g.log_bitmask & MASK_LOG_IMU) {
         DataFlash.Log_Write_IMU(ins);
     }
 #endif
@@ -1199,8 +1167,9 @@ static void one_hz_loop()
     wp_nav.set_lean_angle_max(g.angle_max);
 
     // log battery info to the dataflash
-    if ((g.log_bitmask & MASK_LOG_CURRENT) && motors.armed())
+    if (g.log_bitmask & MASK_LOG_CURRENT) {
         Log_Write_Current();
+    }
 
     // perform pre-arm checks & display failures every 30 seconds
     static uint8_t pre_arm_display_counter = 15;
@@ -1275,7 +1244,7 @@ static void update_GPS(void)
         last_gps_reading = g_gps->last_message_time_ms();
 
         // log GPS message
-        if ((g.log_bitmask & MASK_LOG_GPS) && motors.armed()) {
+        if (g.log_bitmask & MASK_LOG_GPS) {
             DataFlash.Log_Write_GPS(g_gps, current_loc.alt);
         }
 
@@ -1410,6 +1379,13 @@ bool set_yaw_mode(uint8_t new_yaw_mode)
 // 100hz update rate
 void update_yaw_mode(void)
 {
+    int16_t pilot_yaw = g.rc_4.control_in;
+
+    // do not process pilot's yaw input during radio failsafe
+    if (failsafe.radio) {
+        pilot_yaw = 0;
+    }
+
     switch(yaw_mode) {
 
     case YAW_HOLD:
@@ -1418,12 +1394,12 @@ void update_yaw_mode(void)
             control_yaw = ahrs.yaw_sensor;
         }
         // heading hold at heading held in control_yaw but allow input from pilot
-        get_yaw_rate_stabilized_ef(g.rc_4.control_in);
+        get_yaw_rate_stabilized_ef(pilot_yaw);
         break;
 
     case YAW_ACRO:
         // pilot controlled yaw using rate controller
-        get_yaw_rate_stabilized_bf(g.rc_4.control_in);
+        get_yaw_rate_stabilized_bf(pilot_yaw);
         break;
 
     case YAW_LOOK_AT_NEXT_WP:
@@ -1438,7 +1414,7 @@ void update_yaw_mode(void)
         get_stabilize_yaw(control_yaw);
 
         // if there is any pilot input, switch to YAW_HOLD mode for the next iteration
-        if( g.rc_4.control_in != 0 ) {
+        if (pilot_yaw != 0) {
             set_yaw_mode(YAW_HOLD);
         }
         break;
@@ -1452,7 +1428,7 @@ void update_yaw_mode(void)
         get_look_at_yaw();
 
         // if there is any pilot input, switch to YAW_HOLD mode for the next iteration
-        if( g.rc_4.control_in != 0 ) {
+        if (pilot_yaw != 0) {
             set_yaw_mode(YAW_HOLD);
         }
         break;
@@ -1466,7 +1442,7 @@ void update_yaw_mode(void)
         get_circle_yaw();
 
         // if there is any pilot input, switch to YAW_HOLD mode for the next iteration
-        if( g.rc_4.control_in != 0 ) {
+        if (pilot_yaw != 0) {
             set_yaw_mode(YAW_HOLD);
         }
         break;
@@ -1482,7 +1458,7 @@ void update_yaw_mode(void)
         get_stabilize_yaw(control_yaw);
 
         // if there is any pilot input, switch to YAW_HOLD mode for the next iteration
-        if( g.rc_4.control_in != 0 ) {
+        if (pilot_yaw != 0) {
             set_yaw_mode(YAW_HOLD);
         }
         break;
@@ -1504,7 +1480,7 @@ void update_yaw_mode(void)
             control_yaw = ahrs.yaw_sensor;
         }
 		// Commanded Yaw to automatically look ahead.
-        get_look_ahead_yaw(g.rc_4.control_in);
+        get_look_ahead_yaw(pilot_yaw);
         break;
 
     case YAW_DRIFT:
@@ -1526,7 +1502,7 @@ void update_yaw_mode(void)
         get_stabilize_yaw(control_yaw);
 
         // if there is any pilot input, switch to YAW_HOLD mode for the next iteration
-        if( g.rc_4.control_in != 0 ) {
+        if (pilot_yaw != 0) {
             set_yaw_mode(YAW_HOLD);
         }
 
@@ -1585,15 +1561,9 @@ bool set_roll_pitch_mode(uint8_t new_roll_pitch_mode)
         case ROLL_PITCH_AUTO:
         case ROLL_PITCH_STABLE_OF:
         case ROLL_PITCH_DRIFT:
+        case ROLL_PITCH_LOITER:
         case ROLL_PITCH_SPORT:
             roll_pitch_initialised = true;
-            break;
-
-        case ROLL_PITCH_LOITER:
-            // require gps lock
-            if( ap.home_is_set ) {
-                roll_pitch_initialised = true;
-            }
             break;
 
 #if AUTOTUNE == ENABLED
@@ -2110,7 +2080,7 @@ static void update_altitude()
 #endif  // HIL_MODE == HIL_MODE_ATTITUDE
 
     // write altitude info to dataflash logs
-    if ((g.log_bitmask & MASK_LOG_CTUN) && motors.armed()) {
+    if (g.log_bitmask & MASK_LOG_CTUN) {
         Log_Write_Control_Tuning();
     }
 }
@@ -2223,8 +2193,8 @@ static void tuning(){
         break;
 
     case CH6_RELAY:
-        if (g.rc_6.control_in > 525) relay.on();
-        if (g.rc_6.control_in < 475) relay.off();
+        if (g.rc_6.control_in > 525) relay.on(0);
+        if (g.rc_6.control_in < 475) relay.off(0);
         break;
 
 #if FRAME_CONFIG == HELI_FRAME
@@ -2277,6 +2247,11 @@ static void tuning(){
     case CH6_SONAR_GAIN:
         // set sonar gain
         g.sonar_gain.set(tuning_value);
+        break;
+
+    case CH6_LOIT_SPEED:
+        // set max loiter speed to 0 ~ 1000 cm/s
+        wp_nav.set_loiter_velocity(g.rc_6.control_in);
         break;
     }
 }

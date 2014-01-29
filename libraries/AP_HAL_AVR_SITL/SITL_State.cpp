@@ -97,6 +97,8 @@ void SITL_State::_parse_command_line(int argc, char * const argv[])
 	int opt;
 
 	signal(SIGFPE, _sig_fpe);
+	// No-op SIGPIPE handler
+	signal(SIGPIPE, SIG_IGN);
 
     setvbuf(stdout, (char *)0, _IONBF, 0);
     setvbuf(stderr, (char *)0, _IONBF, 0);
@@ -259,7 +261,7 @@ void SITL_State::_timer_handler(int signum)
 #endif
 
     // simulate RC input at 50Hz
-    if (hal.scheduler->millis() - last_pwm_input >= 20) {
+    if (hal.scheduler->millis() - last_pwm_input >= 20 && _sitl->rc_fail == 0) {
         last_pwm_input = hal.scheduler->millis();
         pwm_valid = true;
     }

@@ -20,6 +20,9 @@ static void init_barometer(void)
 static int32_t read_barometer(void)
 {
     barometer.read();
+    if (should_log(MASK_LOG_IMU)) {
+        Log_Write_Baro();
+    }
     return altitude_filter.apply(barometer.get_altitude() * 100.0);
 }
 
@@ -40,7 +43,7 @@ static void read_sonars(void)
         return;
     }
 
-    if (g.log_bitmask & MASK_LOG_SONAR)
+    if (should_log(MASK_LOG_SONAR))
         Log_Write_Sonar();
 }
 
@@ -51,6 +54,9 @@ static void read_airspeed(void)
 {
     if (airspeed.enabled()) {
         airspeed.read();
+        if (should_log(MASK_LOG_IMU)) {
+            Log_Write_Airspeed();
+        }
         calc_airspeed_errors();
     }
 }

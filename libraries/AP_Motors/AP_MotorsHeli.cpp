@@ -204,7 +204,7 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] PROGMEM = {
     // @Units: PWM
     // @Increment: 1
     // @User: Standard
-    AP_GROUPINFO("TAIL_SPEED", 24, AP_MotorsHeli,  _direct_drive_tailspeed, AP_MOTOR_HELI_DIRECTDRIVE_DEFAULT),
+    AP_GROUPINFO("TAIL_SPEED", 24, AP_MotorsHeli,  _direct_drive_tailspeed, AP_MOTOR_HELI_DDTAIL_DEFAULT),
 
     AP_GROUPEND
 };
@@ -595,7 +595,7 @@ void AP_MotorsHeli::move_swash(int16_t roll_out, int16_t pitch_out, int16_t coll
         // rudder feed forward based on collective
         // the feed-forward is not required when the motor is shut down and not creating torque
         // also not required if we are using external gyro
-        if (motor_runup_complete() && _tail_type != AP_MOTORS_HELI_TAILTYPE_SERVO_EXTGYRO) {
+        if ((_rotor_desired > 0) && _tail_type != AP_MOTORS_HELI_TAILTYPE_SERVO_EXTGYRO) {
             yaw_offset = _collective_yaw_effect * abs(_collective_out - _collective_mid_pwm);
         }
     }
@@ -700,11 +700,12 @@ void AP_MotorsHeli::rotor_ramp(int16_t rotor_target)
     // range check rotor_target
     rotor_target = constrain_int16(rotor_target,0,1000);
 
-    // initialise rotor_out to our estimated rotor speed
-    _rotor_out = _rotor_speed_estimate;
-
     // ramp rotor esc output towards target
     if (_rotor_out < rotor_target) {
+        // allow rotor out to jump to rotor's current speed
+        if (_rotor_out < _rotor_speed_estimate) {
+            _rotor_out = _rotor_speed_estimate;
+        }
         // ramp up slowly to target
         _rotor_out += _rsc_ramp_increment;
         if (_rotor_out > rotor_target) {
@@ -712,15 +713,15 @@ void AP_MotorsHeli::rotor_ramp(int16_t rotor_target)
         }
     }else{
         // ramping down happens instantly
-            _rotor_out = rotor_target;
-        }
+        _rotor_out = rotor_target;
+    }
 
     // ramp rotor speed estimate towards rotor out
     if (_rotor_speed_estimate < _rotor_out) {
         _rotor_speed_estimate += _rsc_runup_increment;
         if (_rotor_speed_estimate > _rotor_out) {
             _rotor_speed_estimate = _rotor_out;
-    }
+        }
     }else{
         _rotor_speed_estimate -= _rsc_runup_increment;
         if (_rotor_speed_estimate < _rotor_out) {
@@ -737,7 +738,7 @@ void AP_MotorsHeli::rotor_ramp(int16_t rotor_target)
     }
 
     // output to rsc servo
-        write_rsc(_rotor_out);
+    write_rsc(_rotor_out);
 }
 
 // tail_ramp - ramps tail motor towards target.  Only used for direct drive variable pitch tails

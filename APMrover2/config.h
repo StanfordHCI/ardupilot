@@ -319,6 +319,7 @@
 # define LOGGING_ENABLED		ENABLED
 #endif
 
+#if CONFIG_HAL_BOARD == HAL_BOARD_APM1 || CONFIG_HAL_BOARD == HAL_BOARD_APM2
 #define DEFAULT_LOG_BITMASK     \
     MASK_LOG_ATTITUDE_MED | \
     MASK_LOG_GPS | \
@@ -330,7 +331,12 @@
     MASK_LOG_SONAR | \
     MASK_LOG_COMPASS | \
     MASK_LOG_CURRENT | \
+    MASK_LOG_STEERING | \
     MASK_LOG_CAMERA
+#else
+// other systems have plenty of space for full logs
+#define DEFAULT_LOG_BITMASK   0xffff
+#endif
 
 
 
