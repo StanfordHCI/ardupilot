@@ -27,6 +27,11 @@
 #include <stdio.h>
 #include <sys/time.h>
 
+extern "C" {
+#include <libswiftnav/sbp.h>
+#include <libswiftnav/sbp_messages.h>
+}
+
 using namespace AVR_SITL;
 extern const AP_HAL::HAL& hal;
 
@@ -551,6 +556,65 @@ void SITL_State::_update_gps_nmea(const struct gps_data *d)
 }
 
 /*
+  wraps _gps_write for use with SBP
+ */
+uint32_t SITL_State::_gps_sbp_write(uint8_t *buff, uint32_t n)
+{
+  _gps_write(buff, n);
+  return n;
+}
+
+/*
+  send a new set of GPS SBP packets
+ */
+void SITL_State::_update_gps_sbp(const struct gps_data *d)
+{
+    uint16_t time_week;
+    uint32_t time_week_ms;
+
+    gps_time(&time_week, &time_week_ms);
+
+  sbp_gps_time_t t;
+  t.wn = time_week;
+  t.tow = time_week_ms;
+  t.ns = 0;
+  t.flags = 0;
+
+  sbp_send_message(SBP_GPS_TIME, 0x2222, sizeof(t),
+      (uint8_t*)&t, &_gps_sbp_write);
+
+  if (d->have_lock) {
+    sbp_pos_llh_t pos;
+
+    pos.tow = time_week_ms;
+    pos.lon = d->longitude;
+    pos.lat= d->latitude;
+    pos.height = d->altitude;
+    pos.h_accuracy = 5e3;
+    pos.v_accuracy = 10e3;
+    pos.n_sats = _sitl->gps_numsats;
+    pos.flags = 0;
+
+    sbp_send_message(SBP_POS_LLH, 0x2222, sizeof(pos),
+        (uint8_t*)&pos, &_gps_sbp_write);
+
+    sbp_vel_ned_t velned;
+
+    velned.tow = time_week_ms;
+    velned.n = 1e3 * d->speedN;
+    velned.e  = 1e3 * d->speedE;
+    velned.d  = 1e3 * d->speedD;
+    velned.h_accuracy = 5e3;
+    velned.v_accuracy = 5e3;
+    pos.n_sats = _sitl->gps_numsats;
+    pos.flags = 0;
+
+    sbp_send_message(SBP_VEL_NED, 0x2222, sizeof(velned),
+        (uint8_t*)&velned, &_gps_sbp_write);
+  }
+}
+
+/*
   possibly send a new GPS packet
  */
 void SITL_State::_update_gps(double latitude, double longitude, float altitude,
@@ -559,6 +623,9 @@ void SITL_State::_update_gps(double latitude, double longitude, float altitude,
 	struct gps_data d;
 	char c;
     Vector3f glitch_offsets = _sitl->gps_glitch;
+
+  sbp_state_t s;
+  sbp_state_init(&s);
 
 	// run at configured GPS rate (default 5Hz)
 	if ((hal.scheduler->millis() - gps_state.last_update) < (uint32_t)(1000/_sitl->gps_hertz)) {
@@ -627,6 +694,10 @@ void SITL_State::_update_gps(double latitude, double longitude, float altitude,
 
 	case SITL::GPS_TYPE_NMEA:
 		_update_gps_nmea(&d);
+		break;
+
+	case SITL::GPS_TYPE_SBP:
+		_update_gps_sbp(&d);
 		break;
 	}
 }

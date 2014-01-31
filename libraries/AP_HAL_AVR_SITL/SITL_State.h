@@ -84,6 +84,8 @@ private:
     static uint16_t _gps_nmea_checksum(const char *s);
     static void _gps_nmea_printf(const char *fmt, ...);
     static void _update_gps_nmea(const struct gps_data *d);
+    static uint32_t _gps_sbp_write(uint8_t *buff, uint32_t n);
+    static void _update_gps_sbp(const struct gps_data *d);
 
     static void _update_gps(double latitude, double longitude, float altitude,
 			    double speedN, double speedE, double speedD, bool have_lock);
