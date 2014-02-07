@@ -1,6 +1,6 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 
-#define THISFIRMWARE "ArduCopter V3.1.1-rc2"
+#define THISFIRMWARE "ArduCopter V3.1.2-rc1"
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -465,6 +465,8 @@ static struct {
  #define MOTOR_CLASS AP_MotorsHeli
 #elif FRAME_CONFIG == SINGLE_FRAME
  #define MOTOR_CLASS AP_MotorsSingle
+#elif FRAME_CONFIG == COAX_FRAME
+ #define MOTOR_CLASS AP_MotorsCoax
 #else
  #error Unrecognised frame type
 #endif
@@ -475,6 +477,8 @@ static MOTOR_CLASS motors(&g.rc_1, &g.rc_2, &g.rc_3, &g.rc_4, &g.rc_7, &g.rc_8, 
 static MOTOR_CLASS motors(&g.rc_1, &g.rc_2, &g.rc_3, &g.rc_4, &g.rc_7);
 #elif FRAME_CONFIG == SINGLE_FRAME  // single constructor requires extra servos for flaps
 static MOTOR_CLASS motors(&g.rc_1, &g.rc_2, &g.rc_3, &g.rc_4, &g.single_servo_1, &g.single_servo_2, &g.single_servo_3, &g.single_servo_4);
+#elif FRAME_CONFIG == COAX_FRAME  // single constructor requires extra servos for flaps
+static MOTOR_CLASS motors(&g.rc_1, &g.rc_2, &g.rc_3, &g.rc_4, &g.single_servo_1, &g.single_servo_2);
 #else
 static MOTOR_CLASS motors(&g.rc_1, &g.rc_2, &g.rc_3, &g.rc_4);
 #endif
@@ -1193,8 +1197,7 @@ static void one_hz_loop()
     }
 
     // update assigned functions and enable auxiliar servos
-    aux_servos_update_fn();
-    enable_aux_servos();
+    RC_Channel_aux::enable_aux_servos();
 
 #if MOUNT == ENABLED
     camera_mount.update_mount_type();

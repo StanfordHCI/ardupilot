@@ -22,12 +22,12 @@
 
 #include <AP_HAL.h>
 #include <AP_Math.h>
-#include "AP_MotorsSingle.h"
+#include "AP_MotorsCoax.h"
 
 extern const AP_HAL::HAL& hal;
 
 
-const AP_Param::GroupInfo AP_MotorsSingle::var_info[] PROGMEM = {
+const AP_Param::GroupInfo AP_MotorsCoax::var_info[] PROGMEM = {
     // 0 was used by TB_RATIO
 
     // @Param: TCRV_ENABLE
@@ -35,7 +35,7 @@ const AP_Param::GroupInfo AP_MotorsSingle::var_info[] PROGMEM = {
     // @Description: Controls whether a curve is used to linearize the thrust produced by the motors
     // @User: Advanced
     // @Values: 0:Disabled,1:Enable
-    AP_GROUPINFO("TCRV_ENABLE", 1, AP_MotorsSingle, _throttle_curve_enabled, THROTTLE_CURVE_ENABLED),
+    AP_GROUPINFO("TCRV_ENABLE", 1, AP_MotorsCoax, _throttle_curve_enabled, THROTTLE_CURVE_ENABLED),
 
     // @Param: TCRV_MIDPCT
     // @DisplayName: Thrust Curve mid-point percentage
@@ -43,7 +43,7 @@ const AP_Param::GroupInfo AP_MotorsSingle::var_info[] PROGMEM = {
     // @User: Advanced
     // @Range: 20 80
     // @Increment: 1
-    AP_GROUPINFO("TCRV_MIDPCT", 2, AP_MotorsSingle, _throttle_curve_mid, THROTTLE_CURVE_MID_THRUST),
+    AP_GROUPINFO("TCRV_MIDPCT", 2, AP_MotorsCoax, _throttle_curve_mid, THROTTLE_CURVE_MID_THRUST),
 
     // @Param: TCRV_MAXPCT
     // @DisplayName: Thrust Curve max thrust percentage
@@ -51,115 +51,108 @@ const AP_Param::GroupInfo AP_MotorsSingle::var_info[] PROGMEM = {
     // @User: Advanced
     // @Range: 20 80
     // @Increment: 1
-    AP_GROUPINFO("TCRV_MAXPCT", 3, AP_MotorsSingle, _throttle_curve_max, THROTTLE_CURVE_MAX_THRUST),
+    AP_GROUPINFO("TCRV_MAXPCT", 3, AP_MotorsCoax, _throttle_curve_max, THROTTLE_CURVE_MAX_THRUST),
 
     // @Param: SPIN_ARMED
     // @DisplayName: Motors always spin when armed
     // @Description: Controls whether motors always spin when armed (must be below THR_MIN)
     // @Values: 0:Do Not Spin,70:VerySlow,100:Slow,130:Medium,150:Fast
     // @User: Standard
-    AP_GROUPINFO("SPIN_ARMED", 5, AP_MotorsSingle, _spin_when_armed, AP_MOTORS_SPIN_WHEN_ARMED),
+    AP_GROUPINFO("SPIN_ARMED", 5, AP_MotorsCoax, _spin_when_armed, AP_MOTORS_SPIN_WHEN_ARMED),
 
     // @Param: REV_ROLL
     // @DisplayName: Reverse roll feedback 
     // @Description: Ensure the feedback is negative
     // @Values: -1:Opposite direction,1:Same direction
-    AP_GROUPINFO("REV_ROLL", 6, AP_MotorsSingle, _rev_roll, AP_MOTORS_SING_POSITIVE),
+    AP_GROUPINFO("REV_ROLL", 6, AP_MotorsCoax, _rev_roll, AP_MOTORS_COAX_POSITIVE),
 
     // @Param: REV_PITCH
     // @DisplayName: Reverse roll feedback 
     // @Description: Ensure the feedback is negative
     // @Values: -1:Opposite direction,1:Same direction
-    AP_GROUPINFO("REV_PITCH", 7, AP_MotorsSingle, _rev_pitch, AP_MOTORS_SING_POSITIVE),
+    AP_GROUPINFO("REV_PITCH", 7, AP_MotorsCoax, _rev_pitch, AP_MOTORS_COAX_POSITIVE),
 
 	// @Param: REV_ROLL
     // @DisplayName: Reverse roll feedback 
     // @Description: Ensure the feedback is negative
     // @Values: -1:Opposite direction,1:Same direction
-    AP_GROUPINFO("REV_YAW", 8, AP_MotorsSingle, _rev_yaw, AP_MOTORS_SING_POSITIVE),
+    AP_GROUPINFO("REV_YAW", 8, AP_MotorsCoax, _rev_yaw, AP_MOTORS_COAX_POSITIVE),
 
 	// @Param: SV_SPEED
     // @DisplayName: Servo speed 
     // @Description: Servo update speed
     // @Values: -1:Opposite direction,1:Same direction
-    AP_GROUPINFO("SV_SPEED", 9, AP_MotorsSingle, _servo_speed, AP_MOTORS_SINGLE_SPEED_DIGITAL_SERVOS),
+    AP_GROUPINFO("SV_SPEED", 9, AP_MotorsCoax, _servo_speed, AP_MOTORS_SINGLE_SPEED_DIGITAL_SERVOS),
 
     AP_GROUPEND
 };
 // init
-void AP_MotorsSingle::Init()
+void AP_MotorsCoax::Init()
 {
     // call parent Init function to set-up throttle curve
     AP_Motors::Init();
 
-    // set update rate for the 3 motors (but not the servo on channel 7)
+    // set update rate for the 2 motors (but not the servo on channel 1&2)
     set_update_rate(_speed_hz);
 
-    // set the motor_enabled flag so that the main ESC can be calibrated like other frame types
-    motor_enabled[AP_MOTORS_MOT_7] = true;
+    // set the motor_enabled flag so that the ESCs can be calibrated like other frame types
+    motor_enabled[AP_MOTORS_MOT_3] = true;
+    motor_enabled[AP_MOTORS_MOT_4] = true;
 
-    // we set four servos to angle
+    // set ranges for fin servos
     _servo1->set_type(RC_CHANNEL_TYPE_ANGLE);
     _servo2->set_type(RC_CHANNEL_TYPE_ANGLE);
-    _servo3->set_type(RC_CHANNEL_TYPE_ANGLE);
-    _servo4->set_type(RC_CHANNEL_TYPE_ANGLE);
-    _servo1->set_angle(AP_MOTORS_SINGLE_SERVO_INPUT_RANGE);
-    _servo2->set_angle(AP_MOTORS_SINGLE_SERVO_INPUT_RANGE);
-    _servo3->set_angle(AP_MOTORS_SINGLE_SERVO_INPUT_RANGE);
-    _servo4->set_angle(AP_MOTORS_SINGLE_SERVO_INPUT_RANGE);
-
-    // disable CH7 from being used as an aux output (i.e. for camera gimbal, etc)
-    RC_Channel_aux::disable_aux_channel(CH_7);
+    _servo1->set_angle(AP_MOTORS_COAX_SERVO_INPUT_RANGE);
+    _servo2->set_angle(AP_MOTORS_COAX_SERVO_INPUT_RANGE);
 }
 
 // set update rate to motors - a value in hertz
-void AP_MotorsSingle::set_update_rate( uint16_t speed_hz )
+void AP_MotorsCoax::set_update_rate( uint16_t speed_hz )
 {
     // record requested speed
     _speed_hz = speed_hz;
 
-    // set update rate for the 3 motors (but not the servo on channel 7)
-    uint32_t mask = 
-	    1U << _motor_to_channel_map[AP_MOTORS_MOT_1] |
-	    1U << _motor_to_channel_map[AP_MOTORS_MOT_2] |
-	    1U << _motor_to_channel_map[AP_MOTORS_MOT_3] |
-		1U << _motor_to_channel_map[AP_MOTORS_MOT_4] ;
+    // set update rate for the two motors
+    uint32_t mask2 =
+        1U << _motor_to_channel_map[AP_MOTORS_MOT_3] |
+        1U << _motor_to_channel_map[AP_MOTORS_MOT_4] ;
+    hal.rcout->set_freq(mask2, _speed_hz);
+
+    // set update rate for the two servos
+    uint32_t mask =
+      1U << _motor_to_channel_map[AP_MOTORS_MOT_1] |
+      1U << _motor_to_channel_map[AP_MOTORS_MOT_2] ;
     hal.rcout->set_freq(mask, _servo_speed);
-	uint32_t mask2 = 1U << _motor_to_channel_map[AP_MOTORS_MOT_7];
-	hal.rcout->set_freq(mask2, _speed_hz);
 }
 
 // enable - starts allowing signals to be sent to motors
-void AP_MotorsSingle::enable()
+void AP_MotorsCoax::enable()
 {
     // enable output channels
     hal.rcout->enable_ch(_motor_to_channel_map[AP_MOTORS_MOT_1]);
     hal.rcout->enable_ch(_motor_to_channel_map[AP_MOTORS_MOT_2]);
     hal.rcout->enable_ch(_motor_to_channel_map[AP_MOTORS_MOT_3]);
     hal.rcout->enable_ch(_motor_to_channel_map[AP_MOTORS_MOT_4]);
-	hal.rcout->enable_ch(_motor_to_channel_map[AP_MOTORS_MOT_7]);
 }
 
 // output_min - sends minimum values out to the motor and trim values to the servos
-void AP_MotorsSingle::output_min()
+void AP_MotorsCoax::output_min()
 {
     // fill the motor_out[] array for HIL use
     motor_out[AP_MOTORS_MOT_1] = _servo1->radio_trim;
     motor_out[AP_MOTORS_MOT_2] = _servo2->radio_trim;
-	motor_out[AP_MOTORS_MOT_3] = _servo3->radio_trim;
-    motor_out[AP_MOTORS_MOT_4] = _servo4->radio_trim;
-	motor_out[AP_MOTORS_MOT_7] = _rc_throttle->radio_min;
+    motor_out[AP_MOTORS_MOT_3] = _rc_throttle->radio_min;
+    motor_out[AP_MOTORS_MOT_4] = _rc_throttle->radio_min;
 
     // send minimum value to each motor
     hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_1], _servo1->radio_trim);
     hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_2], _servo2->radio_trim);
-    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_3], _servo3->radio_trim);
-	hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_4], _servo4->radio_trim);
-    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_7], _rc_throttle->radio_min);
+    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_3], _rc_throttle->radio_min);
+    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_4], _rc_throttle->radio_min);
 }
 
 // output_armed - sends commands to the motors
-void AP_MotorsSingle::output_armed()
+void AP_MotorsCoax::output_armed()
 {
     int16_t out_min = _rc_throttle->radio_min + _min_throttle;
 
@@ -178,68 +171,64 @@ void AP_MotorsSingle::output_armed()
         if (_spin_when_armed > _min_throttle) {
             _spin_when_armed = _min_throttle;
         }
-        
-        motor_out[AP_MOTORS_MOT_7] = _rc_throttle->radio_min + _spin_when_armed;
+        motor_out[AP_MOTORS_MOT_3] = _rc_throttle->radio_min + _spin_when_armed;
+        motor_out[AP_MOTORS_MOT_4] = _rc_throttle->radio_min + _spin_when_armed;
     }else{
 
-		//motor
-		motor_out[AP_MOTORS_MOT_7] = _rc_throttle->radio_out;
-        //front
-        _servo1->servo_out = _rev_roll*_rc_roll->servo_out + _rev_yaw*_rc_yaw->servo_out;
-		//right
-        _servo2->servo_out = _rev_pitch*_rc_pitch->servo_out + _rev_yaw*_rc_yaw->servo_out;
-		//rear
-		_servo3->servo_out = -_rev_roll*_rc_roll->servo_out + _rev_yaw*_rc_yaw->servo_out;
-		//left
-		_servo4->servo_out = -_rev_pitch*_rc_pitch->servo_out + _rev_yaw*_rc_yaw->servo_out;
-
+        // motors
+        motor_out[AP_MOTORS_MOT_3] = _rev_yaw*_rc_yaw->servo_out + _rc_throttle->radio_out;
+        motor_out[AP_MOTORS_MOT_4] = -_rev_yaw*_rc_yaw->servo_out +_rc_throttle->radio_out;
+        // front
+        _servo1->servo_out = _rev_roll*_rc_roll->servo_out;
+        // right
+        _servo2->servo_out = _rev_pitch*_rc_pitch->servo_out;
 		_servo1->calc_pwm();
 		_servo2->calc_pwm();
-		_servo3->calc_pwm();
-		_servo4->calc_pwm();
-
-		motor_out[AP_MOTORS_MOT_1] = _servo1->radio_out;
-		motor_out[AP_MOTORS_MOT_2] = _servo2->radio_out;
-		motor_out[AP_MOTORS_MOT_3] = _servo3->radio_out;
-		motor_out[AP_MOTORS_MOT_4] = _servo4->radio_out;
 
         // adjust for throttle curve
         if( _throttle_curve_enabled ) {
-            motor_out[AP_MOTORS_MOT_7] = _throttle_curve.get_y(motor_out[AP_MOTORS_MOT_7]);
+            motor_out[AP_MOTORS_MOT_3] = _throttle_curve.get_y(motor_out[AP_MOTORS_MOT_3]);
+            motor_out[AP_MOTORS_MOT_4] = _throttle_curve.get_y(motor_out[AP_MOTORS_MOT_4]);
         }
 
         // ensure motors don't drop below a minimum value and stop
-        motor_out[AP_MOTORS_MOT_7] = max(motor_out[AP_MOTORS_MOT_7],    out_min);
+        motor_out[AP_MOTORS_MOT_3] = max(motor_out[AP_MOTORS_MOT_3],    out_min);
+        motor_out[AP_MOTORS_MOT_4] = max(motor_out[AP_MOTORS_MOT_4],    out_min);
     }
 
     // send output to each motor
-    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_1], motor_out[AP_MOTORS_MOT_1]);
-    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_2], motor_out[AP_MOTORS_MOT_2]);
-	hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_3], motor_out[AP_MOTORS_MOT_3]);
+    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_1], _servo1->radio_out);
+    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_2], _servo2->radio_out);
+    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_3], motor_out[AP_MOTORS_MOT_3]);
     hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_4], motor_out[AP_MOTORS_MOT_4]);
-	hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_7], motor_out[AP_MOTORS_MOT_7]);
-
 }
 
 // output_disarmed - sends commands to the motors
-void AP_MotorsSingle::output_disarmed()
+void AP_MotorsCoax::output_disarmed()
 {
     // Send minimum values to all motors
     output_min();
 }
 
 // output_test - spin each motor for a moment to allow the user to confirm the motor order and spin direction
-void AP_MotorsSingle::output_test()
+void AP_MotorsCoax::output_test()
 {
     // Send minimum values to all motors
     output_min();
 
-    // spin main motor
+    // spin motor 1
     hal.scheduler->delay(1000);
-    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_7], _rc_throttle->radio_min + _min_throttle);
+    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_3], _rc_throttle->radio_min + _min_throttle);
     hal.scheduler->delay(1000);
-    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_7], _rc_throttle->radio_min);
+    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_3], _rc_throttle->radio_min);
     hal.scheduler->delay(2000);   
+
+    // spin motor 2
+    hal.scheduler->delay(1000);
+    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_4], _rc_throttle->radio_min + _min_throttle);
+    hal.scheduler->delay(1000);
+    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_4], _rc_throttle->radio_min);
+    hal.scheduler->delay(2000); 
 
     // flap servo 1
     hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_1], _servo1->radio_min);
@@ -255,22 +244,6 @@ void AP_MotorsSingle::output_test()
     hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_2], _servo2->radio_max);
     hal.scheduler->delay(1000);
     hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_2], _servo2->radio_trim);
-    hal.scheduler->delay(2000);
-
-    // flap servo 3
-	hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_3], _servo3->radio_min);
-    hal.scheduler->delay(1000);
-    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_3], _servo3->radio_max);
-    hal.scheduler->delay(1000);
-    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_3], _servo3->radio_trim);
-    hal.scheduler->delay(2000);
-
-    // flap servo 4
-	hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_4], _servo4->radio_min);
-    hal.scheduler->delay(1000);
-    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_4], _servo4->radio_max);
-    hal.scheduler->delay(1000);
-    hal.rcout->write(_motor_to_channel_map[AP_MOTORS_MOT_4], _servo4->radio_trim);
 
     // Send minimum values to all motors
     output_min();

@@ -553,7 +553,7 @@ static void servo_write(uint8_t ch, uint16_t pwm)
 {
     bool servo_ok = false;
 
-    #if (FRAME_CONFIG == QUAD_FRAME)
+    #if (FRAME_CONFIG == QUAD_FRAME || FRAME_CONFIG == COAX_FRAME)
         // Quads can use RC5 and higher as servos
         if (ch >= CH_5) servo_ok = true;
     #elif (FRAME_CONFIG == TRI_FRAME || FRAME_CONFIG == SINGLE_FRAME)
