@@ -575,7 +575,6 @@ void SITL_State::_update_gps_sbp(const struct gps_data *d, sbp_state_t* s)
   t.tow = time_week_ms;
   t.ns = 0;
   t.flags = 0;
-  printf("SENDING GPS TIME WITH TOW=%d\n", time_week_ms);
 
   sbp_send_message(s, SBP_GPS_TIME, 0x2222, sizeof(t),
       (uint8_t*)&t, &_gps_sbp_write);
@@ -595,10 +594,6 @@ void SITL_State::_update_gps_sbp(const struct gps_data *d, sbp_state_t* s)
     sbp_send_message(s, SBP_POS_LLH, 0x2222, sizeof(pos),
         (uint8_t*)&pos, &_gps_sbp_write);
     
-    #ifdef SBP_DEBUGGING
-    printf("Sending SBP LLH with lat=%f, lon=%f\n", d->latitude, d->longitude);
-    #endif
-
     sbp_vel_ned_t velned;
 
     velned.tow = time_week_ms;
