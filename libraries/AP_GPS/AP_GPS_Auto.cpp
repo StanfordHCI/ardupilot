@@ -50,7 +50,7 @@ AP_GPS_Auto::read(void)
 		// its been more than 1.2 seconds without detection on this
 		// GPS - switch to another baud rate
 		_baudrate = pgm_read_dword(&baudrates[last_baud]);
-		//hal.console->printf_P(PSTR("Setting GPS baudrate %u\n"), (unsigned)_baudrate);
+		hal.console->printf_P(PSTR("Setting GPS baudrate %u\n"), (unsigned)_baudrate);
 		_port->begin(_baudrate, 256, 16);		
 		last_baud++;
 		last_baud_change_ms = now;
@@ -108,6 +108,10 @@ AP_GPS_Auto::_detect(void)
 		else if (AP_GPS_MTK::_detect(data)) {
 			hal.console->print_P(PSTR(" MTK "));
 			new_gps = new AP_GPS_MTK();
+		}
+		else if (AP_GPS_SBP::_detect(data)) {
+			hal.console->print_P(PSTR(" SBP "));
+			new_gps = new AP_GPS_SBP();
 		}
 #if !defined( __AVR_ATmega1280__ )
 		// save a bit of code space on a 1280

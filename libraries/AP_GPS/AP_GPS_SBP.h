@@ -14,34 +14,6 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-//
-// NMEA parser, adapted by Michael Smith from TinyGPS v9:
-//
-// TinyGPS - a small GPS library for Arduino providing basic NMEA parsing
-// Copyright (C) 2008-9 Mikal Hart
-// All rights reserved.
-//
-//
-
-/// @file	AP_GPS_SBP.h
-/// @brief	NMEA protocol parser
-///
-/// This is a lightweight NMEA parser, derived originally from the
-/// TinyGPS parser by Mikal Hart.  It is frugal in its use of memory
-/// and tries to avoid unnecessary arithmetic.
-///
-/// The parser handles GPGGA, GPRMC and GPVTG messages, and attempts to be
-/// robust in the face of occasional corruption in the input stream.  It
-/// makes a basic effort to configure GPS' that are likely to be connected in
-/// NMEA mode (SiRF, MediaTek and ublox) to emit the correct message
-/// stream, but does not validate that the correct stream is being received.
-/// In particular, a unit emitting just GPRMC will show as having a fix
-/// even though no altitude data is being received.
-///
-/// GPVTG data is parsed, but as the message may not contain the the
-/// qualifier field (this is common with e.g. older SiRF units) it is
-/// not considered a source of fix-valid information.
-///
 
 
 #ifndef __AP_GPS_SBP_H_
@@ -51,30 +23,10 @@
 #include "GPS.h"
 #include <AP_Progmem.h>
 
-
-#define SBP_HEADER_1  0xBE
-#define SBP_HEADER_2  0xEF
-
-enum sbp_state_state_t {
-    WAITING_1 = 0,
-    WAITING_2,
-    GET_TYPE,
-    GET_LEN,
-    GET_MSG,
-    GET_CRC
-};
-
-/** State structure for processing SBP messages from a particular USART. */
-typedef struct {
- sbp_state_state_t state;
-  uint8_t msg_type;
-  uint8_t msg_len;
-  uint8_t msg_n_read;
-  uint8_t msg_buff[256];
-  uint8_t crc_n_read;
-  uint8_t crc[2];
-} sbp_process_messages_state_t;
-
+extern "C" {
+#include <libswiftnav/sbp.h>
+#include <libswiftnav/sbp_messages.h>
+}
 
 /// SBP parser
 ///
@@ -96,14 +48,30 @@ public:
     ///
     virtual bool        read();
 
-	static bool _detect(uint8_t data);
+    static bool _detect(uint8_t data);
+
+    uint32_t sbp_read(uint8_t* buff, uint32_t n);
+
+    void read_gps_time(uint16_t sender_id, uint8_t len, uint8_t msg[]);
+    void read_pos_llh(uint16_t sender_id, uint8_t len, uint8_t msg[]);
+    void read_vel_ned(uint16_t sender_id, uint8_t len, uint8_t msg[]);
 
 private:
 
-    void sbp_process_usart();
+  //SBP Parser State and Callbacks
+  sbp_state_t sbp_state;
+  sbp_msg_callbacks_node_t sbp_callback_node_gps_time;
+  sbp_msg_callbacks_node_t sbp_callback_node_pos_llh;
+  sbp_msg_callbacks_node_t sbp_callback_node_vel_ned;
 
-    sbp_process_messages_state_t sbp_state;
 
 };
+
+
+//FILE-PRIVATE WRAPPER FUCTIONS FOR C CALLBACK FUNCTIONS
+static uint32_t _wrap_sbp_read(uint8_t* buff, uint32_t n, void* context);
+static void _sbp_callback_gps_time(uint16_t sender_id, uint8_t len, uint8_t msg[], void *context);
+static void _sbp_callback_pos_llh(uint16_t sender_id, uint8_t len, uint8_t msg[], void *context);
+static void _sbp_callback_vel_ned(uint16_t sender_id, uint8_t len, uint8_t msg[], void *context);
 
 #endif // __AP_GPS_SBP_H_
