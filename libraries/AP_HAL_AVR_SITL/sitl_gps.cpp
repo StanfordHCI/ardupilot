@@ -27,10 +27,6 @@
 #include <stdio.h>
 #include <sys/time.h>
 
-extern "C" {
-#include <libswiftnav/sbp.h>
-#include <libswiftnav/sbp_messages.h>
-}
 
 using namespace AVR_SITL;
 extern const AP_HAL::HAL& hal;
@@ -558,7 +554,7 @@ void SITL_State::_update_gps_nmea(const struct gps_data *d)
 /*
   wraps _gps_write for use with SBP
  */
-uint32_t SITL_State::_gps_sbp_write(uint8_t *buff, uint32_t n)
+uint32_t SITL_State::_gps_sbp_write(uint8_t *buff, uint32_t n, void* context)
 {
   _gps_write(buff, n);
   return n;
@@ -567,7 +563,7 @@ uint32_t SITL_State::_gps_sbp_write(uint8_t *buff, uint32_t n)
 /*
   send a new set of GPS SBP packets
  */
-void SITL_State::_update_gps_sbp(const struct gps_data *d)
+void SITL_State::_update_gps_sbp(const struct gps_data *d, sbp_state_t* s)
 {
     uint16_t time_week;
     uint32_t time_week_ms;
@@ -579,8 +575,9 @@ void SITL_State::_update_gps_sbp(const struct gps_data *d)
   t.tow = time_week_ms;
   t.ns = 0;
   t.flags = 0;
+  printf("SENDING GPS TIME WITH TOW=%d\n", time_week_ms);
 
-  sbp_send_message(SBP_GPS_TIME, 0x2222, sizeof(t),
+  sbp_send_message(s, SBP_GPS_TIME, 0x2222, sizeof(t),
       (uint8_t*)&t, &_gps_sbp_write);
 
   if (d->have_lock) {
@@ -595,8 +592,12 @@ void SITL_State::_update_gps_sbp(const struct gps_data *d)
     pos.n_sats = _sitl->gps_numsats;
     pos.flags = 0;
 
-    sbp_send_message(SBP_POS_LLH, 0x2222, sizeof(pos),
+    sbp_send_message(s, SBP_POS_LLH, 0x2222, sizeof(pos),
         (uint8_t*)&pos, &_gps_sbp_write);
+    
+    #ifdef SBP_DEBUGGING
+    printf("Sending SBP LLH with lat=%f, lon=%f\n", d->latitude, d->longitude);
+    #endif
 
     sbp_vel_ned_t velned;
 
@@ -609,7 +610,7 @@ void SITL_State::_update_gps_sbp(const struct gps_data *d)
     pos.n_sats = _sitl->gps_numsats;
     pos.flags = 0;
 
-    sbp_send_message(SBP_VEL_NED, 0x2222, sizeof(velned),
+    sbp_send_message(s, SBP_VEL_NED, 0x2222, sizeof(velned),
         (uint8_t*)&velned, &_gps_sbp_write);
   }
 }
@@ -624,8 +625,8 @@ void SITL_State::_update_gps(double latitude, double longitude, float altitude,
 	char c;
     Vector3f glitch_offsets = _sitl->gps_glitch;
 
-  sbp_state_t s;
-  sbp_state_init(&s);
+	sbp_state_t sbp_state;
+  	sbp_state_init(&sbp_state);
 
 	// run at configured GPS rate (default 5Hz)
 	if ((hal.scheduler->millis() - gps_state.last_update) < (uint32_t)(1000/_sitl->gps_hertz)) {
@@ -697,7 +698,7 @@ void SITL_State::_update_gps(double latitude, double longitude, float altitude,
 		break;
 
 	case SITL::GPS_TYPE_SBP:
-		_update_gps_sbp(&d);
+		_update_gps_sbp(&d, &sbp_state);
 		break;
 	}
 }
