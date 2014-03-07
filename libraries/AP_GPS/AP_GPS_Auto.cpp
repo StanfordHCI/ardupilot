@@ -10,7 +10,7 @@
 
 extern const AP_HAL::HAL& hal;
 
-static const uint32_t baudrates[] PROGMEM = {38400U, 57600U, 9600U, 4800U};
+static const uint32_t baudrates[] PROGMEM = {38400U, 57600U, 115200U, 9600U, 4800U};
 
 const prog_char AP_GPS_Auto::_mtk_set_binary[]   PROGMEM = MTK_SET_BINARY;
 const prog_char AP_GPS_Auto::_sirf_set_binary[]  PROGMEM = SIRF_SET_BINARY;
@@ -50,7 +50,7 @@ AP_GPS_Auto::read(void)
 		// its been more than 1.2 seconds without detection on this
 		// GPS - switch to another baud rate
 		_baudrate = pgm_read_dword(&baudrates[last_baud]);
-		hal.console->printf_P(PSTR("Setting GPS baudrate %u\n"), (unsigned)_baudrate);
+		hal.console->printf_P(PSTR("GPS TIMEOUT: Setting GPS baudrate %u\n"), (unsigned)_baudrate);
 		_port->begin(_baudrate, 256, 16);		
 		last_baud++;
 		last_baud_change_ms = now;

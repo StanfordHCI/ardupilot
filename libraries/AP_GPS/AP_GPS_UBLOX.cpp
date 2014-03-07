@@ -19,7 +19,7 @@
 //	Code by Michael Smith, Jordi Munoz and Jose Julio, DIYDrones.com
 //
 #include <stdint.h>
-
+#include <stdio.h>
 #include <AP_HAL.h>
 #include <DataFlash.h>
 

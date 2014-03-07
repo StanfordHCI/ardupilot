@@ -200,7 +200,7 @@ protected:
     bool _secondary_gps:1;
 
 	// detected baudrate
-	uint16_t _baudrate;
+	uint32_t _baudrate;
 
     // the time we got the last GPS timestamp
     uint32_t _last_gps_time;

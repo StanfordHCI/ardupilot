@@ -7,10 +7,11 @@
 #include <AP_HAL.h>
 #include <AP_Notify.h>
 #include "GPS.h"
+#include <stdio.h>
 
 extern const AP_HAL::HAL& hal;
 
-#define GPS_DEBUGGING 0
+#define GPS_DEBUGGING 1
 
 #if GPS_DEBUGGING
  # define Debug(fmt, args ...)  do {hal.console->printf("%s:%d: " fmt "\n", __FUNCTION__, __LINE__, ## args); hal.scheduler->delay(0); } while(0)
@@ -58,7 +59,7 @@ GPS::update(void)
     // if we did not get a message, and the idle timer of 1.2 seconds has expired, re-init
     if (!result) {
         if ((tnow - _idleTimer) > 1200) {
-            Debug("gps read timeout %lu %lu", (unsigned long)tnow, (unsigned long)_idleTimer);
+            Debug("gps read timeout %lu %lu - resetting GPS", (unsigned long)tnow, (unsigned long)_idleTimer);
             _status = NO_GPS;
 
             init(_port, _nav_setting, _DataFlash);

@@ -33,9 +33,7 @@ extern "C" {
 class AP_GPS_SBP : public GPS
 {
 public:
-	AP_GPS_SBP(void) : 
-	GPS()
-    	{}
+	AP_GPS_SBP(void);
 
     /// Perform a (re)initialisation of the GPS; sends the
     /// protocol configuration messages.
@@ -55,6 +53,7 @@ public:
     void read_gps_time(uint16_t sender_id, uint8_t len, uint8_t msg[]);
     void read_pos_llh(uint16_t sender_id, uint8_t len, uint8_t msg[]);
     void read_vel_ned(uint16_t sender_id, uint8_t len, uint8_t msg[]);
+    void read_dops(uint16_t sender_id, uint8_t len, uint8_t msg[]);
 
 private:
 
@@ -63,7 +62,17 @@ private:
   sbp_msg_callbacks_node_t sbp_callback_node_gps_time;
   sbp_msg_callbacks_node_t sbp_callback_node_pos_llh;
   sbp_msg_callbacks_node_t sbp_callback_node_vel_ned;
+  sbp_msg_callbacks_node_t sbp_callback_node_dops;
 
+  //statistics
+  uint32_t _last_healthcheck_millis;
+  uint32_t _pos_msg_counter;
+  uint32_t _crc_error_counter;
+
+  //SBP Parser for Detecting Messages
+  static bool shouldInitState;
+  static uint8_t _detect_data;
+  static sbp_state_t sbp_detect_state;
 
 };
 
@@ -73,5 +82,8 @@ static uint32_t _wrap_sbp_read(uint8_t* buff, uint32_t n, void* context);
 static void _sbp_callback_gps_time(uint16_t sender_id, uint8_t len, uint8_t msg[], void *context);
 static void _sbp_callback_pos_llh(uint16_t sender_id, uint8_t len, uint8_t msg[], void *context);
 static void _sbp_callback_vel_ned(uint16_t sender_id, uint8_t len, uint8_t msg[], void *context);
+static void _sbp_callback_dops(uint16_t sender_id, uint8_t len, uint8_t msg[], void *context);
+
+static uint32_t _sbp_detect_read(uint8_t* buff, uint32_t n, void* context);
 
 #endif // __AP_GPS_SBP_H_
