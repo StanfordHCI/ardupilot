@@ -602,11 +602,24 @@ void SITL_State::_update_gps_sbp(const struct gps_data *d, sbp_state_t* s)
     velned.d  = 1e3 * d->speedD;
     velned.h_accuracy = 5e3;
     velned.v_accuracy = 5e3;
-    pos.n_sats = _sitl->gps_numsats;
-    pos.flags = 0;
+    velned.n_sats = _sitl->gps_numsats;
+    velned.flags = 0;
 
     sbp_send_message(s, SBP_VEL_NED, 0x2222, sizeof(velned),
         (uint8_t*)&velned, &_gps_sbp_write);
+
+    sbp_dops_t dops;
+    dops.tow = time_week_ms;
+	dops.gdop = 1;
+	dops.pdop = 1;
+	dops.tdop = 1;
+	dops.hdop = 100;
+	dops.vdop = 1;    
+
+    sbp_send_message(s, SBP_DOPS, 0x2222, sizeof(dops),
+        (uint8_t*)&dops, &_gps_sbp_write);
+
+
   }
 }
 
@@ -616,6 +629,7 @@ void SITL_State::_update_gps_sbp(const struct gps_data *d, sbp_state_t* s)
 void SITL_State::_update_gps(double latitude, double longitude, float altitude,
 							 double speedN, double speedE, double speedD, bool have_lock)
 {
+
 	struct gps_data d;
 	char c;
     Vector3f glitch_offsets = _sitl->gps_glitch;
