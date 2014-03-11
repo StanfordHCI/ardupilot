@@ -565,59 +565,59 @@ uint32_t SITL_State::_gps_sbp_write(uint8_t *buff, uint32_t n, void* context)
  */
 void SITL_State::_update_gps_sbp(const struct gps_data *d, sbp_state_t* s)
 {
-    uint16_t time_week;
-    uint32_t time_week_ms;
+	uint16_t time_week;
+	uint32_t time_week_ms;
 
-    gps_time(&time_week, &time_week_ms);
+	gps_time(&time_week, &time_week_ms);
 
-  sbp_gps_time_t t;
-  t.wn = time_week;
-  t.tow = time_week_ms;
-  t.ns = 0;
-  t.flags = 0;
+	sbp_gps_time_t t;
+	t.wn = time_week;
+	t.tow = time_week_ms;
+	t.ns = 0;
+	t.flags = 0;
 
-  sbp_send_message(s, SBP_GPS_TIME, 0x2222, sizeof(t),
-      (uint8_t*)&t, &_gps_sbp_write);
+	sbp_send_message(s, SBP_GPS_TIME, 0x2222, sizeof(t),
+	  (uint8_t*)&t, &_gps_sbp_write);
 
-  if (d->have_lock) {
-    sbp_pos_llh_t pos;
+	if (d->have_lock) {
+	sbp_pos_llh_t pos;
 
-    pos.tow = time_week_ms;
-    pos.lon = d->longitude;
-    pos.lat= d->latitude;
-    pos.height = d->altitude;
-    pos.h_accuracy = 5e3;
-    pos.v_accuracy = 10e3;
-    pos.n_sats = _sitl->gps_numsats;
-    pos.flags = 0;
+	pos.tow = time_week_ms;
+	pos.lon = d->longitude;
+	pos.lat= d->latitude;
+	pos.height = d->altitude;
+	pos.h_accuracy = 5e3;
+	pos.v_accuracy = 10e3;
+	pos.n_sats = _sitl->gps_numsats;
+	pos.flags = 0;
 
-    sbp_send_message(s, SBP_POS_LLH, 0x2222, sizeof(pos),
-        (uint8_t*)&pos, &_gps_sbp_write);
-    
-    sbp_vel_ned_t velned;
+	sbp_send_message(s, SBP_POS_LLH, 0x2222, sizeof(pos),
+	    (uint8_t*)&pos, &_gps_sbp_write);
 
-    velned.tow = time_week_ms;
-    velned.n = 1e3 * d->speedN;
-    velned.e  = 1e3 * d->speedE;
-    velned.d  = 1e3 * d->speedD;
-    velned.h_accuracy = 5e3;
-    velned.v_accuracy = 5e3;
-    velned.n_sats = _sitl->gps_numsats;
-    velned.flags = 0;
+	sbp_vel_ned_t velned;
 
-    sbp_send_message(s, SBP_VEL_NED, 0x2222, sizeof(velned),
-        (uint8_t*)&velned, &_gps_sbp_write);
+	velned.tow = time_week_ms;
+	velned.n = 1e3 * d->speedN;
+	velned.e  = 1e3 * d->speedE;
+	velned.d  = 1e3 * d->speedD;
+	velned.h_accuracy = 5e3;
+	velned.v_accuracy = 5e3;
+	velned.n_sats = _sitl->gps_numsats;
+	velned.flags = 0;
 
-    sbp_dops_t dops;
-    dops.tow = time_week_ms;
+	sbp_send_message(s, SBP_VEL_NED, 0x2222, sizeof(velned),
+	    (uint8_t*)&velned, &_gps_sbp_write);
+
+	sbp_dops_t dops;
+	dops.tow = time_week_ms;
 	dops.gdop = 1;
 	dops.pdop = 1;
 	dops.tdop = 1;
 	dops.hdop = 100;
 	dops.vdop = 1;    
 
-    sbp_send_message(s, SBP_DOPS, 0x2222, sizeof(dops),
-        (uint8_t*)&dops, &_gps_sbp_write);
+	sbp_send_message(s, SBP_DOPS, 0x2222, sizeof(dops),
+	    (uint8_t*)&dops, &_gps_sbp_write);
 
 
   }
