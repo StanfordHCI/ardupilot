@@ -34,6 +34,8 @@ extern const AP_HAL::HAL& hal;
 static uint8_t next_gps_index;
 static uint8_t gps_delay;
 SITL_State::gps_data SITL_State::_gps_data[MAX_GPS_DELAY];
+bool SITL_State::_gps_has_home = false;
+SITL_State::gps_data SITL_State::_gps_home_data;
 
 // state of GPS emulation
 static struct gps_state {
@@ -619,6 +621,47 @@ void SITL_State::_update_gps_sbp(const struct gps_data *d, sbp_state_t* s)
 	sbp_send_message(s, SBP_DOPS, 0x2222, sizeof(dops),
 	    (uint8_t*)&dops, &_gps_sbp_write);
 
+	//RTK Implementation:
+	if (_gps_has_home) {
+		//We calculate a baseline vector from our home to here
+		double homeLLH[3];
+		double currentLLH[3];
+		double homeECEF[3];
+		double currentECEF[3];
+		double baselineVector[3];
+
+		homeLLH[0] = _gps_home_data.latitude;
+		homeLLH[1] = _gps_home_data.longitude;
+		homeLLH[2] = _gps_home_data.altitude;
+
+		currentLLH[0] = d->latitude;
+		currentLLH[1] = d->longitude;
+		currentLLH[2] = d->altitude;
+
+		llhdeg2rad(homeLLH, homeLLH);
+		llhdeg2rad(currentLLH, currentLLH);
+
+		wgsllh2ecef(homeLLH, homeECEF);
+		wgsllh2ecef(currentLLH, currentECEF);
+
+		vector_subtract(3, currentECEF, homeECEF, baselineVector);
+
+		sbp_baseline_ecef_t baseline;
+		baseline.tow = time_week_ms;
+		baseline.x = (int32_t) (baselineVector[0]*1e6);
+		baseline.y = (int32_t) (baselineVector[1]*1e6);
+		baseline.z = (int32_t) (baselineVector[2]*1e6);
+		baseline.accuracy = 5e3;
+		baseline.n_sats = _sitl->gps_numsats;
+		baseline.flags = 0;
+
+		printf("Sending SBP Baseline Message with |(%d, %d, %d)|=%f\n", baseline.x, baseline.y, baseline.z, vector_norm(3, baselineVector));
+
+		sbp_send_message(s, SBP_BASELINE_ECEF, 0x2222, sizeof(baseline),
+			(uint8_t*)&baseline, &_gps_sbp_write);
+		
+	}
+
 
   }
 }
@@ -630,6 +673,20 @@ void SITL_State::_update_gps(double latitude, double longitude, float altitude,
 							 double speedN, double speedE, double speedD, bool have_lock)
 {
 
+
+	//Capture the current position as home.
+	if (!_gps_has_home) {
+		if (have_lock) {
+			_gps_home_data.latitude = latitude;
+			_gps_home_data.longitude = longitude;
+			_gps_home_data.altitude = altitude;
+			_gps_home_data.speedN = speedN;
+			_gps_home_data.speedE = speedE;
+			_gps_home_data.speedD = speedD;
+			_gps_home_data.have_lock = have_lock;
+			_gps_has_home = true;
+		}	
+	}
 	struct gps_data d;
 	char c;
     Vector3f glitch_offsets = _sitl->gps_glitch;

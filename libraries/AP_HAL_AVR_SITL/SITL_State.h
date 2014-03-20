@@ -24,6 +24,8 @@
 extern "C" {
 #include <libswiftnav/sbp.h>
 #include <libswiftnav/sbp_messages.h>
+#include <libswiftnav/coord_system.h>
+#include <libswiftnav/linear_algebra.h>
 }
 
 class HAL_AVR_SITL;
@@ -80,6 +82,8 @@ private:
     #define MAX_GPS_DELAY 100
     static gps_data _gps_data[MAX_GPS_DELAY];
 
+    static bool _gps_has_home;
+    static gps_data _gps_home_data;
     static void _gps_write(const uint8_t *p, uint16_t size);
     static void _gps_send_ubx(uint8_t msgid, uint8_t *buf, uint16_t size);
     static void _update_gps_ubx(const struct gps_data *d);
