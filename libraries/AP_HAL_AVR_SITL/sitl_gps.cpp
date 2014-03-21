@@ -648,14 +648,12 @@ void SITL_State::_update_gps_sbp(const struct gps_data *d, sbp_state_t* s)
 
 		sbp_baseline_ecef_t baseline;
 		baseline.tow = time_week_ms;
-		baseline.x = (int32_t) (baselineVector[0]*1e6);
-		baseline.y = (int32_t) (baselineVector[1]*1e6);
-		baseline.z = (int32_t) (baselineVector[2]*1e6);
+		baseline.x = (int32_t) (baselineVector[0]*1e3); //Convert to MM
+		baseline.y = (int32_t) (baselineVector[1]*1e3); //Convert to MM
+		baseline.z = (int32_t) (baselineVector[2]*1e3); //Convert to MM
 		baseline.accuracy = 5e3;
 		baseline.n_sats = _sitl->gps_numsats;
 		baseline.flags = 0;
-
-		printf("Sending SBP Baseline Message with |(%d, %d, %d)|=%f\n", baseline.x, baseline.y, baseline.z, vector_norm(3, baselineVector));
 
 		sbp_send_message(s, SBP_BASELINE_ECEF, 0x2222, sizeof(baseline),
 			(uint8_t*)&baseline, &_gps_sbp_write);

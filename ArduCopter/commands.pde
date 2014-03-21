@@ -16,6 +16,10 @@ static int32_t get_RTL_alt()
 static void init_home()
 {
     set_home_is_set(true);
+    g_gps->capture_as_home();
+    #if GPS2_ENABLE
+        g_gps2->capture_as_home();
+    #endif
     ahrs.set_home(g_gps->latitude, g_gps->longitude, 0);
 
     inertial_nav.setup_home_position();

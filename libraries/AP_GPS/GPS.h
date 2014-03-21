@@ -144,6 +144,12 @@ public:
 
     void set_secondary(void) { _secondary_gps = true; }
 
+    // Captures the current state of the GPS as the home location/
+    //  Particularly useful for RTK GPS implementations, 
+    //  where deviations from a known baseline allow us to report absolute positons that's
+    //  centimeter-accurate relative to the home position.
+    virtual void capture_as_home() { }
+
 protected:
     AP_HAL::UARTDriver *_port;   ///< port the GPS is attached to
 

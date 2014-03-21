@@ -15,7 +15,6 @@
  */
 
 
-
 #ifndef __AP_GPS_SBP_H_
 #define __AP_GPS_SBP_H_
 
@@ -26,6 +25,8 @@
 extern "C" {
 #include <libswiftnav/sbp.h>
 #include <libswiftnav/sbp_messages.h>
+#include <libswiftnav/coord_system.h>
+#include <libswiftnav/linear_algebra.h>
 }
 
 /// SBP parser
@@ -48,14 +49,52 @@ public:
 
     static bool _detect(uint8_t data);
 
+    void capture_as_home();
+
     uint32_t sbp_read(uint8_t* buff, uint32_t n);
 
     void read_gps_time(uint16_t sender_id, uint8_t len, uint8_t msg[]);
     void read_pos_llh(uint16_t sender_id, uint8_t len, uint8_t msg[]);
     void read_vel_ned(uint16_t sender_id, uint8_t len, uint8_t msg[]);
     void read_dops(uint16_t sender_id, uint8_t len, uint8_t msg[]);
+    void read_baseline_ecef(uint16_t sender_id, uint8_t len, uint8_t msg[]);
+    void read_baseline_ned(uint16_t sender_id, uint8_t len, uint8_t msg[]);
 
 private:
+
+  //RTK-related variables to support reporting absolute positions
+  //by calculating centimeter-accurate offsets from fixed home lat-lon.
+  //
+  //  INITIALIZATION:     Given homeLatLon, homeBaselineFromRef, we calculate referencePointECEF
+  //  ONLINE CALCULATION: Given baselineFromRef, we calculate currentLocationECEF.
+  //
+  // Since we hold the home point constant, 
+  // we output a lat-lon that is only GPS-accurate absolutely, 
+  // but RTK-accurate relative to home
+  //
+  // See https://github.com/swift-nav/libswiftnav/raw/master/docs/sbp.pdf
+  //
+
+  //RTK STATE MACHINE:
+  // state  IN_SPP_STATE:    when !(_rtk_messages_incoming && _rtk_has_home)
+  // state  IN_RTK_STATE:   when _rtk_messages_incoming && _rtk_has_home
+
+  bool      _rtk_active;      //Are we receiving RTK messages?
+  bool      _rtk_has_home;    //Do we have a home position to do pseudo-absolute positioning with?
+  uint32_t  _rtk_last_baseline_millis;
+
+  int32_t   _rtk_last_baselineECEF[3]; //Last received baseline, in mm.
+  uint16_t  _rtk_last_baseline_accuracy;
+  double    _rtk_referencePointECEF[3]; //Reference point in absolute ECEF coordinates
+
+  //single-point solutions
+  int32_t _sp_latitude;                   ///< latitude in degrees * 10,000,000
+  int32_t _sp_longitude;                  ///< longitude in degrees * 10,000,000
+  int32_t _sp_altitude_cm;                ///< altitude in cm
+
+  //RTK State Machine Transition Side-effects:
+  //update the publically-visible lat, lon, alt variables either from RTK or SPP variables
+  void update_public_lat_lon_alt();
 
   //SBP Parser State and Callbacks
   sbp_state_t sbp_state;
@@ -63,10 +102,13 @@ private:
   sbp_msg_callbacks_node_t sbp_callback_node_pos_llh;
   sbp_msg_callbacks_node_t sbp_callback_node_vel_ned;
   sbp_msg_callbacks_node_t sbp_callback_node_dops;
+  sbp_msg_callbacks_node_t sbp_callback_node_baseline_ecef;
+  sbp_msg_callbacks_node_t sbp_callback_node_baseline_ned;
 
   //statistics
   uint32_t _last_healthcheck_millis;
   uint32_t _pos_msg_counter;
+  uint32_t _baseline_msg_counter;
   uint32_t _crc_error_counter;
 
   //SBP Parser for Detecting Messages
@@ -83,6 +125,8 @@ static void _sbp_callback_gps_time(uint16_t sender_id, uint8_t len, uint8_t msg[
 static void _sbp_callback_pos_llh(uint16_t sender_id, uint8_t len, uint8_t msg[], void *context);
 static void _sbp_callback_vel_ned(uint16_t sender_id, uint8_t len, uint8_t msg[], void *context);
 static void _sbp_callback_dops(uint16_t sender_id, uint8_t len, uint8_t msg[], void *context);
+static void _sbp_callback_baseline_ecef(uint16_t sender_id, uint8_t len, uint8_t msg[], void *context);
+static void _sbp_callback_baseline_ned(uint16_t sender_id, uint8_t len, uint8_t msg[], void *context);
 
 static uint32_t _sbp_detect_read(uint8_t* buff, uint32_t n, void* context);
 
