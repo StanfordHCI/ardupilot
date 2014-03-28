@@ -23,10 +23,10 @@
 #include <AP_Progmem.h>
 
 extern "C" {
-#include <libswiftnav/sbp.h>
-#include <libswiftnav/sbp_messages.h>
-#include <libswiftnav/coord_system.h>
-#include <libswiftnav/linear_algebra.h>
+#include "sbp.h"
+#include "sbp_messages.h"
+#include "coord_system.h"
+#include "linear_algebra.h"
 }
 
 /// SBP parser
@@ -39,7 +39,7 @@ public:
     /// Perform a (re)initialisation of the GPS; sends the
     /// protocol configuration messages.
     ///
-    virtual void        init(AP_HAL::UARTDriver *s, enum GPS_Engine_Setting nav_setting = GPS_ENGINE_NONE);
+    virtual void        init(AP_HAL::UARTDriver *s, enum GPS_Engine_Setting nav_setting, DataFlash_Class *dataflash);
 
     /// Checks the serial receive buffer for characters,
     /// attempts to parse NMEA data and updates internal state
@@ -49,7 +49,7 @@ public:
 
     static bool _detect(uint8_t data);
 
-    void capture_as_home();
+    int capture_as_home();
 
     uint32_t sbp_read(uint8_t* buff, uint32_t n);
 
@@ -59,6 +59,11 @@ public:
     void read_dops(uint16_t sender_id, uint8_t len, uint8_t msg[]);
     void read_baseline_ecef(uint16_t sender_id, uint8_t len, uint8_t msg[]);
     void read_baseline_ned(uint16_t sender_id, uint8_t len, uint8_t msg[]);
+
+
+    //For testing purposes.
+    void fake_read_pos_llh();
+    void fake_read_baseline_ecef();
 
 private:
 
@@ -116,6 +121,12 @@ private:
   static uint8_t _detect_data;
   static sbp_state_t sbp_detect_state;
 
+  // have we written the logging headers to DataFlash?
+  bool            logging_started:1;
+
+  void logging_write_headers();
+  void logging_log_health(float pos_hz, float crc_hz, float baseline_hz, bool rtk_active, bool rtk_has_home);
+
 };
 
 
@@ -129,5 +140,6 @@ static void _sbp_callback_baseline_ecef(uint16_t sender_id, uint8_t len, uint8_t
 static void _sbp_callback_baseline_ned(uint16_t sender_id, uint8_t len, uint8_t msg[], void *context);
 
 static uint32_t _sbp_detect_read(uint8_t* buff, uint32_t n, void* context);
+
 
 #endif // __AP_GPS_SBP_H_
