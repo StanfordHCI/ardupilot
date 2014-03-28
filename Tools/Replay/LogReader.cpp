@@ -373,7 +373,13 @@ bool LogReader::update(uint8_t &type)
         }
         memcpy(&msg, data, sizeof(msg));
         wait_timestamp(msg.apm_time);
-        gps->setHIL(msg.status==3?GPS::FIX_3D:GPS::FIX_NONE,
+        Fix_Status fix = GPS::FIX_NONE;
+        if (msg.status == 3) {
+            fix = GPS::FIX_3D;
+        } else if (msg.status == 8) {
+            fix = GPS::FIX_RTK;
+        }
+        gps->setHIL(fix,
                     msg.apm_time,
                     msg.latitude*1.0e-7f, 
                     msg.longitude*1.0e-7f, 

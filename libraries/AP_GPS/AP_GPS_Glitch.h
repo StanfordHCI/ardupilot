@@ -63,6 +63,8 @@ private:
     int32_t     _last_good_lat;     // last good latitude reported by the gps
     int32_t     _last_good_lon;     // last good longitude reported by the gps
     Vector2f    _last_good_vel;     // last good velocity reported by the gps in cm/s in lat and lon directions
+
+    GPS::GPS_Status  _last_gps_status;   // last good fix status
 };
 
 #endif // __GPS_H__

@@ -37,15 +37,22 @@ public:
         NO_GPS = 0,             ///< No GPS connected/detected
         NO_FIX = 1,             ///< Receiving valid GPS messages but no lock
         GPS_OK_FIX_2D = 2,      ///< Receiving valid messages and 2D lock
-        GPS_OK_FIX_3D = 3       ///< Receiving valid messages and 3D lock
+        GPS_OK_FIX_3D = 3,       ///< Receiving valid messages and 3D lock
+        GPS_OK_FIX_RTK = 8       ///< Receiving valid messages and RTK lock
     };
 
     /// Fix status codes
-    ///
+    ///   This is the union of all the fix status codes from all the different GPS types supported.
     enum Fix_Status {
         FIX_NONE = 0,           ///< No fix
+        FIX_DEAD_RECKONING = 1, ///< Dead reckoning from the GPS
         FIX_2D = 2,             ///< 2d fix
         FIX_3D = 3,             ///< 3d fix
+        FIX_GPS_DEAD_RECKONING = 4,
+        FIX_TIME = 5,
+        FIX_2D_SBAS = 6,
+        FIX_3D_SBAS = 7,
+        FIX_RTK = 8,             ///< RTK fix
     };
 
     // GPS navigation engine settings. Not all GPS receivers support
@@ -148,7 +155,12 @@ public:
     //  Particularly useful for RTK GPS implementations, 
     //  where deviations from a known baseline allow us to report absolute positons that's
     //  centimeter-accurate relative to the home position.
-    virtual void capture_as_home() { }
+    //
+    // Returns status code:
+    //  0 == captured!
+    //  1 == no SPP (single point position) solution available
+    //  2 == no RTK solution available
+    virtual int capture_as_home() { return 0; }
 
 protected:
     AP_HAL::UARTDriver *_port;   ///< port the GPS is attached to

@@ -167,7 +167,7 @@ void ToshibaLED::update_colours(void)
     // solid green or flashing green if armed
     if (AP_Notify::flags.armed) {
         // solid green if armed with GPS 3d lock
-        if (AP_Notify::flags.gps_status == 3) {
+        if (AP_Notify::flags.gps_status >= 3) {
             _red_des = TOSHIBA_LED_OFF;
             _blue_des = TOSHIBA_LED_OFF;
             _green_des = brightness;
@@ -206,14 +206,42 @@ void ToshibaLED::update_colours(void)
         }else{
             // flashing green if disarmed with GPS 3d lock
             // flashing blue if disarmed with no gps lock
+            _red_des = TOSHIBA_LED_OFF;
             switch(step) {
                 case 0:
+                    if (AP_Notify::flags.gps_status > 3) {
+                            _blue_des = TOSHIBA_LED_OFF;
+                            _green_des = brightness;
+                    }
+                    break;
+
                 case 1:
+                    if (AP_Notify::flags.gps_status > 3) {
+                            _blue_des = TOSHIBA_LED_OFF;
+                            _green_des = TOSHIBA_LED_OFF;
+                    }
+                    break;
+
                 case 2:
+                    if (AP_Notify::flags.gps_status > 3) {
+                            _blue_des = TOSHIBA_LED_OFF;
+                            _green_des = brightness;
+                    }
+                    break;
+
                 case 3:
+                    if (AP_Notify::flags.gps_status > 3) {
+                            _blue_des = TOSHIBA_LED_OFF;
+                            _green_des = TOSHIBA_LED_OFF;
+                    }
+                    break;
+
                 case 4:
-                    _red_des = TOSHIBA_LED_OFF;
                     if (AP_Notify::flags.gps_status == 3) {
+                        // flashing green if disarmed with GPS 3d lock
+                        _blue_des = TOSHIBA_LED_OFF;
+                        _green_des = brightness;
+                    } else if (AP_Notify::flags.gps_status > 3) {
                         // flashing green if disarmed with GPS 3d lock
                         _blue_des = TOSHIBA_LED_OFF;
                         _green_des = brightness;
@@ -223,10 +251,35 @@ void ToshibaLED::update_colours(void)
                         _green_des = TOSHIBA_LED_OFF;
                     }
                     break;
+
                 case 5:
+                    if (AP_Notify::flags.gps_status > 3) {
+                        _blue_des = TOSHIBA_LED_OFF;
+                        _green_des = TOSHIBA_LED_OFF;
+                    }
+                    break;
+
                 case 6:
+                    if (AP_Notify::flags.gps_status > 3) {
+                            _blue_des = TOSHIBA_LED_OFF;
+                            _green_des = brightness;
+                    }
+                    break;
+
                 case 7:
+                    if (AP_Notify::flags.gps_status > 3) {
+                            _blue_des = TOSHIBA_LED_OFF;
+                            _green_des = TOSHIBA_LED_OFF;
+                    }
+                    break;
+
                 case 8:
+                    if (AP_Notify::flags.gps_status > 3) {
+                            _blue_des = TOSHIBA_LED_OFF;
+                            _green_des = brightness;
+                    }
+                    break;
+
                 case 9:
                     // all off
                     _red_des = TOSHIBA_LED_OFF;

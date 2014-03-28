@@ -145,7 +145,7 @@ bool AP_Arming::gps_checks(bool report)
         } 
 
         //GPS OK?
-        if (!home_is_set || gps->status() != GPS::GPS_OK_FIX_3D ||              
+        if (!home_is_set || gps->status() < GPS::GPS_OK_FIX_3D ||              
             AP_Notify::flags.gps_glitching ||
             AP_Notify::flags.failsafe_gps) {
             if (report) {

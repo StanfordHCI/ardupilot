@@ -16,11 +16,26 @@ static int32_t get_RTL_alt()
 static void init_home()
 {
     set_home_is_set(true);
-    g_gps->capture_as_home();
+    int got_home = g_gps->capture_as_home();
     #if GPS2_ENABLE
         g_gps2->capture_as_home();
     #endif
     ahrs.set_home(g_gps->latitude, g_gps->longitude, 0);
+
+    switch (got_home) {
+        case 0:
+            gcs_send_text_P(SEVERITY_LOW,PSTR("GPS: Captured home position"));
+            break;
+        case 1:
+            gcs_send_text_P(SEVERITY_LOW,PSTR("GPS: No SPP soltuion, refused to capture home"));
+            break;
+        case 2:
+            gcs_send_text_P(SEVERITY_LOW,PSTR("GPS: No RTK soltuion, refused to capture home"));
+            break;
+        default:
+            gcs_send_text_P(SEVERITY_LOW,PSTR("GPS: Refused to capture home, not sure why"));
+            break;
+    }
 
     inertial_nav.setup_home_position();
 

@@ -59,7 +59,7 @@ void GPS_Glitch::check_position()
     bool all_ok;                    // true if the new gps position passes sanity checks
 
     // exit immediately if we don't have gps lock
-    if (_gps == NULL || _gps->status() != GPS::GPS_OK_FIX_3D) {
+    if (_gps == NULL || _gps->status() < GPS::GPS_OK_FIX_3D) {
         _flags.glitching = true;
         return;
     }
@@ -71,6 +71,7 @@ void GPS_Glitch::check_position()
         _last_good_lon = _gps->longitude;
         _last_good_vel.x = _gps->velocity_north();
         _last_good_vel.y = _gps->velocity_east();
+        _last_gps_status = _gps->status();
         _flags.initialised = true;
         _flags.glitching = false;
         return;
@@ -98,6 +99,13 @@ void GPS_Glitch::check_position()
         all_ok = (distance_cm <= accel_based_distance);
     }
 
+    //If we drop out of a higher level fix (aka RTK), then we also experience a glitch
+    GPS::GPS_Status new_status = _gps->status();        
+    if (new_status < _last_gps_status) {
+        all_ok = false;
+    }
+    _last_gps_status = new_status;
+    
     // store updates to gps position
     if (all_ok) {
         // position is acceptable

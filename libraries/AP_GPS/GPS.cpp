@@ -68,7 +68,9 @@ GPS::update(void)
         }
     } else {
         // we got a message, update our status correspondingly
-        if (fix == FIX_3D) {
+        if (fix == FIX_RTK) {
+            _status = GPS_OK_FIX_RTK;
+        }else if (fix == FIX_3D) {
             _status = GPS_OK_FIX_3D;
         }else if (fix == FIX_2D) {
             _status = GPS_OK_FIX_2D;
